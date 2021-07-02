@@ -1,0 +1,16 @@
+<?xml version="1.0" ?>
+<launch>
+  <arg name="node_name" default="udp_client_offb"/>
+  <arg name="topic_name" default="mavros"/>
+  <arg name="ip_srv" default="127.0.0.1"/>
+  <arg name="port_srv" default="1234"/>
+  
+  <param name="node_name" value="$(arg node_name)" />
+  <param name="topic_name" value="$(arg topic_name)" />
+  <param name="ip_srv" value="$(arg ip_srv)"/>
+  <param name="port_srv"  value="$(arg port_srv)"/>
+
+  <group>
+    <node pkg="px4_offboard" type="udp_client_offboard.py" name="$(arg node_name)" output="screen"/>
+  </group>
+</launch>

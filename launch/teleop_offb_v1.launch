@@ -1,0 +1,11 @@
+<?xml version="1.0" ?>
+<launch>
+	<arg name="topic_name" default="mavros"/>
+	<arg name="node_name" default="node_teleop_offb"/>
+	<param name="topic_name" value="$(arg topic_name)" />
+	<param name="node_name" value="$(arg node_name)" />
+
+  <group>
+		<node pkg="px4_offboard" type="teleop_offb_v1.py" name="$(arg node_name)" output="screen"/>
+  </group>
+</launch>

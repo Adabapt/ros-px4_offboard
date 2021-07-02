@@ -1,0 +1,18 @@
+<?xml version="2.0" ?>
+<launch>
+  <arg name="topic_name" default="mavros"/>
+  <arg name="node_name" default="node_teleop_offb"/>
+  <arg name="longueur_zone" default="0"/>
+  <arg name="largeur_zone" default="0"/>
+  <arg name="hauteur_zone" default="0"/>
+  
+  <param name="topic_name" value="$(arg topic_name)" />
+  <param name="node_name" value="$(arg node_name)" />
+  <param name="longueur_zone" value="$(arg longueur_zone)"/>
+  <param name="largeur_zone"  value="$(arg largeur_zone)"/>
+  <param name="hauteur_zone"  value="$(arg hauteur_zone)"/>
+
+  <group>
+    <node pkg="px4_offboard" type="teleop_offb.py" name="$(arg node_name)" output="screen"/>
+  </group>
+</launch>
