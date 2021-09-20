@@ -85,28 +85,32 @@ class UdpClientOffbNode:
 		self.data=str(round(self.uav_pose.pose.position.x,1))+":"+str(round(self.uav_pose.pose.position.y,1))+":"+str(round(self.uav_pose.pose.position.z,1))+":"+str(round(deg_z,1))
 
 
+	"""fonctions pour armer et changer le mode du drone"""
+
 	def offboard_mode(self):
+		print("offboard mode")
+		self.set_mode_client(base_mode=0, custom_mode="OFFBOARD")
+		self.rate.sleep()
 
-		while not self.current_state.armed:
-			if self.current_state.mode != "OFFBOARD":
-				self.set_mode_client(base_mode=0, custom_mode="OFFBOARD")
-			else:
-				if not self.current_state.armed:
-					self.arming_client(True)
-					
-			self.rate.sleep()
+	def arm(self):
+		print("arming drone")
+		self.arming_client(True)
+		self.rate.sleep()	
 
-			# older versions of PX4 always return success==True, so better to check Status instead
-			if self.prev_state.armed != self.current_state.armed:
-				rospy.loginfo("Vehicle armed: %r" % self.current_state.armed)
-			if self.prev_state.mode != self.current_state.mode: 
-				rospy.loginfo("Current mode: %s" % self.current_state.mode)
-			self.prev_state = self.current_state
-			self.rate.sleep()
+	def land_mode(self):
+		print("land mode")
+		self.set_mode_client(base_mode=0, custom_mode="AUTO.LAND")
+		self.rate.sleep()
+
+	def disarm(self):
+		print("disarming drone")
+		#fonctionne à tous les coups
+		self.cmd(broadcast=False, command=400, confirmation=0, 
+				param1=0, param2=21196, param3=0,param4=0, param5=0, param6=0, param7=0)
+		self.rate.sleep()
 
 	def move(self):
 
-		self.offboard_mode()
 		self.loc_pos_sub.publish(self.pose_dest)
 		self.rate.sleep()
 
@@ -213,6 +217,8 @@ if __name__ == '__main__':
 	try:
 
 		node = UdpClientOffbNode()
+
+		node.arm()
 		node.offboard_mode()
 
 		t_fin = time.time()
@@ -220,7 +226,6 @@ if __name__ == '__main__':
 
 		while 1:
 
-			node.offboard_mode()
 			node.move()
 
 			if t_act > t_fin :
@@ -229,6 +234,9 @@ if __name__ == '__main__':
 				t_fin = t_act + 3
 
 			t_act = time.time()
+
+
+		node.disarm()
 
 	except rospy.ROSInterruptException:
 		pass
