@@ -3,10 +3,12 @@
   <arg name="node_name" default="udp_client_offb"/>
   <arg name="topic_name" default="mavros"/>
   <arg name="ip_srv" default="127.0.0.1"/>
+  <arg name="drone_nb" default=""/>
   <arg name="port_srv" default="1234"/>
   
   <param name="node_name" value="$(arg node_name)" />
   <param name="topic_name" value="$(arg topic_name)" />
+  <param name="drone_nb" value="$(arg drone_nb)" />
   <param name="ip_srv" value="$(arg ip_srv)"/>
   <param name="port_srv"  value="$(arg port_srv)"/>
 

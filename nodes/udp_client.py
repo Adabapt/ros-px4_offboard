@@ -18,6 +18,7 @@ node_name = str(rospy.get_param('node_name'))
 topic_name = str(rospy.get_param('topic_name'))
 ip_srv = str(rospy.get_param('ip_srv'))
 port_srv = int(rospy.get_param('port_srv'))
+drone_nb = int(rospy.get_param('drone_nb'))
 
 buffer=1024
 
@@ -30,12 +31,12 @@ class UdpClientNode:
 
 
 		self.uav_pose = PoseStamped()
-		self.uav_state = State()
 
 		rospy.init_node(node_name)
 
 		self.pose_sub = rospy.Subscriber("/"+topic_name+"/local_position/pose", PoseStamped, self.pose_cb)
 		self.data = ""
+		self.last_data = ""
 
 	def pose_cb(self,pose):
 		self.uav_pose = pose
@@ -46,33 +47,36 @@ class UdpClientNode:
 
 	def send_data(self):
 
+		if self.last_data != self.data :
 
-		print("creation socket")
+			print("creation socket")
 
-		sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+			sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
 
-		print("connexion socket")
+			print("connexion socket")
 
-		sock.connect((ip_srv, port_srv))
+			sock.connect((ip_srv, port_srv))
 
-		print("envoie data")
+			print("envoie data")
 
-		msg = "UAV.position=\""+self.data+"\""
+			msg = "UAV"+str(drone_nb)+".position=\""+self.data+"\""
 
-		print("msg env :"+msg)
+			self.last_data = self.data
 
-		msg_enc = msg.encode()
-		sock.send(msg_enc)
+			print("msg env :"+msg)
 
-		print("reception data")
+			msg_enc = msg.encode()
+			sock.send(msg_enc)
 
-		buf=sock.recv(buffer)
-		buf_dec = buf.decode()
-		print(buf_dec)
+			"""print("reception data")
 
-		print("fermeture socket")
+			buf=sock.recv(buffer)
+			buf_dec = buf.decode()
+			print(buf_dec)"""
 
-		sock.close()
+			print("fermeture socket")
+
+			sock.close()
 			
 
 ######################AUTRES FONCTIONS#####################
@@ -121,7 +125,7 @@ if __name__ == '__main__':
 
 		while 1:
 			node.send_data()
-			time.sleep(3)
+			time.sleep(0.01) # 10HZ
 
 	except rospy.ROSInterruptException:
 		pass

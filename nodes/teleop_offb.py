@@ -10,7 +10,7 @@ import time
 import sys, select, termios, tty
 from geometry_msgs.msg import PoseStamped, Twist
 from mavros_msgs.msg import State, Thrust 
-from mavros_msgs.srv import CommandBool, SetMode
+from mavros_msgs.srv import CommandBool, SetMode, CommandLong
 
 
 """version 2 avec des zones pour chaque drone et une fonction home"""
@@ -38,7 +38,12 @@ e : rota droite
 c : speed angular +
 v : speed angular -
 
-& : home
+& : emergency disarm
+é : arm
+" : offboard mode
+' : land mode
+( : disarm
+- : home
 
 anything else : stabilize
 
@@ -83,7 +88,7 @@ class TeleopOffboardNode:
 		#speed
 		self.speed = 0.2 # en m/s
 		self.speed_ang = 0.5 # en rad/s
-		self.speed_alt = 0.5 # en m/s
+		self.speed_alt = 1 # en m/s
 		self.speed_corr = 0.1 # en m/s
 		self.speed_corr_ang = 0.2 # en rad/s
 
@@ -100,7 +105,7 @@ class TeleopOffboardNode:
 	
 		self.arming_client = rospy.ServiceProxy("/"+topic_name+"/cmd/arming", CommandBool)
 		self.set_mode_client = rospy.ServiceProxy("/"+topic_name+"/set_mode", SetMode)
-
+		self.cmd = rospy.ServiceProxy("/"+topic_name+"/cmd/command", CommandLong) # en dernier recours pour forcer le disarm
 
 		self.current_state = State()
 		self.prev_state = self.current_state
@@ -150,28 +155,6 @@ class TeleopOffboardNode:
 
 	################METHODES####################
 
-	"""
-	fonction qui raffraichi l'état de pilotage du drone sur offboard pour pouvoir lui envoyer des instructions depuis l'ordinateur
-	elle sert aussi à armer le drone (peut être à séparer dans une autre fonction)
-	"""
-	def offboard_mode(self):
-		self.now = rospy.get_rostime()
-		if self.current_state.mode != "OFFBOARD" and (self.now - self.last_request > rospy.Duration(5.)):
-			self.set_mode_client(base_mode=0, custom_mode="OFFBOARD")
-			self.last_request = self.now 
-		else:
-			if not self.current_state.armed and (self.now - self.last_request > rospy.Duration(5.)):
-				self.arming_client(True)
-				self.last_request = self.now 
-
-		# older versions of PX4 always return success==True, so better to check Status instead
-		if self.prev_state.armed != self.current_state.armed:
-			rospy.loginfo("Vehicle armed: %r" % self.current_state.armed)
-		if self.prev_state.mode != self.current_state.mode: 
-			rospy.loginfo("Current mode: %s" % self.current_state.mode)
-		self.prev_state = self.current_state
-		self.rate.sleep()
-
 
 	"""
 	fonction qui en fonction de l'entrée clavier envoie une consigne de vitesse différente que le drone va essayer d'atteindre pour contrôler la trajectoire du drone
@@ -193,15 +176,51 @@ class TeleopOffboardNode:
 
 		#arrêt de la node si controle + c
 		if(key == '\x03'):
-			#plus disarm
+			print("control + C")
+			self.set_mode_client(base_mode=0, custom_mode="AUTO.LAND")
+			time.sleep(0.5)
 			self.arming_client(False)
 			self.rate.sleep()
 			return 0
 
 		if(key == '&'):
-			self.home()
+			print("emergency disarm")
+			self.cmd(broadcast=False, command=400, confirmation=0, 
+				param1=0, param2=21196, param3=0,param4=0, param5=0, param6=0, param7=0)
 			self.rate.sleep()
 			return 0	
+
+		if(key == 'é'):
+			print("arming drone")
+			self.arming_client(True)
+			self.rate.sleep()
+			return 1	
+
+		if(key == '"'):
+			print("offboard mode")
+			self.set_mode_client(base_mode=0, custom_mode="OFFBOARD")
+			self.rate.sleep()
+			return 1	
+
+		if(key == '\''):
+			print("land mode")
+			self.set_mode_client(base_mode=0, custom_mode="AUTO.LAND")
+			self.rate.sleep()
+			return 1	
+
+		if(key == '('):
+			print("disarming drone")
+			self.arming_client(False)
+			self.rate.sleep()
+			return 1	
+
+		#a verif pour le drone reel"
+		if(key == '-'):
+			print("home")
+			self.home()
+			self.rate.sleep()
+			return 1	
+
 				
 		#envoie de la bonne consigne pour se déplacer dans la direction voulu
 		if key == 'z':
@@ -376,7 +395,6 @@ class TeleopOffboardNode:
 			elif deg_z < deg_z_obj :
 				cmd.angular.z = self.speed_corr_ang
 
-			self.offboard_mode()
 			self.cmd_vel_pub.publish(cmd)
 			self.rate.sleep()
 			cmd = Twist()
@@ -510,7 +528,7 @@ if __name__ == '__main__':
 		print(todo)
 
 		while res :
-			node.offboard_mode()
+
 			res = node.key_action()
 			node.verif_zone()
 

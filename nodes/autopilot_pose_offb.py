@@ -10,7 +10,7 @@ import time
 
 from geometry_msgs.msg import PoseStamped, Pose, Quaternion
 from mavros_msgs.msg import State, Thrust
-from mavros_msgs.srv import CommandBool, SetMode
+from mavros_msgs.srv import CommandBool, SetMode, CommandLong
 
 
 """version 2 avec des zones pour chaque drone et une fonction home"""
@@ -58,7 +58,7 @@ class AutopilotOffboardNode:
 	
 		self.arming_client = rospy.ServiceProxy("/"+topic_name+"/cmd/arming", CommandBool)
 		self.set_mode_client = rospy.ServiceProxy("/"+topic_name+"/set_mode", SetMode)
-
+		self.cmd = rospy.ServiceProxy("/"+topic_name+"/cmd/command", CommandLong) # en dernier recours pour forcer le disarm
 
 		self.current_state = State()
 		self.prev_state = self.current_state
@@ -108,28 +108,31 @@ class AutopilotOffboardNode:
 
 	################METHODES####################
 
-	"""
-	fonction qui raffraichi l'état de pilotage du drone sur offboard pour pouvoir lui envoyer des instructions depuis l'ordinateur
-	elle sert aussi à armer le drone (peut être à séparer dans une autre fonction)
-	"""
+
+	"""fonctions pour armer et changer le mode du drone"""
+
 	def offboard_mode(self):
+		print("offboard mode")
+		self.set_mode_client(base_mode=0, custom_mode="OFFBOARD")
+		self.rate.sleep()
 
-		while not self.current_state.armed:
-			if self.current_state.mode != "OFFBOARD":
-				self.set_mode_client(base_mode=0, custom_mode="OFFBOARD")
-			else:
-				if not self.current_state.armed:
-					self.arming_client(True)
-					
-			self.rate.sleep()
+	def arm(self):
+		print("arming drone")
+		self.arming_client(True)
+		self.rate.sleep()	
 
-			# older versions of PX4 always return success==True, so better to check Status instead
-			if self.prev_state.armed != self.current_state.armed:
-				rospy.loginfo("Vehicle armed: %r" % self.current_state.armed)
-			if self.prev_state.mode != self.current_state.mode: 
-				rospy.loginfo("Current mode: %s" % self.current_state.mode)
-			self.prev_state = self.current_state
-			self.rate.sleep()
+	def land_mode(self):
+		print("land mode")
+		self.set_mode_client(base_mode=0, custom_mode="AUTO.LAND")
+		self.rate.sleep()
+
+	def disarm(self):
+		print("disarming drone")
+		#fonctionne à tous les coups
+		self.cmd(broadcast=False, command=400, confirmation=0, 
+				param1=0, param2=21196, param3=0,param4=0, param5=0, param6=0, param7=0)
+		self.rate.sleep()
+
 
 	"""
 	fonction pour déplacer le drone dans une direction sur une distance précise en mètre
@@ -205,13 +208,13 @@ class AutopilotOffboardNode:
 				if pos_dest.pose.position.z < self.init_pos.pose.position.z :
 					pos_dest.pose.position.z = self.init_pos.pose.position.z
 
-		self.offboard_mode()
+
 		self.loc_pos_sub.publish(pos_dest) #sinon bug au démarrage ou le topic de pos et égale à la destination
 		self.rate.sleep()
 
 		while flag_condition or flag_depassement:
 
-			self.offboard_mode()
+
 			self.loc_pos_sub.publish(pos_dest)
 			self.rate.sleep()
 
@@ -284,13 +287,13 @@ class AutopilotOffboardNode:
 			pos_dest.pose.orientation.z = qua_z
 			pos_dest.pose.orientation.w = qua_w
 
-		self.offboard_mode()
+
 		self.loc_pos_sub.publish(pos_dest) #sinon bug au démarrage ou le topic de pos et égale à la destination
 		self.rate.sleep()
 
 		while (deg_z >= deg_z_obj + precision_ang or deg_z <= deg_z_obj - precision_ang) or flag_depassement :
 
-			self.offboard_mode()
+
 			self.loc_pos_sub.publish(pos_dest)
 			self.rate.sleep()
 
@@ -341,7 +344,7 @@ class AutopilotOffboardNode:
 
 		while abs(pos_dest.pose.position.x - self.last_pos.pose.position.x) >= precision_lin or abs(pos_dest.pose.position.y - self.last_pos.pose.position.y) >= precision_lin or abs(pos_dest.pose.position.z - self.last_pos.pose.position.z) >= precision_alt or (deg_z >= deg_z_obj + precision_ang or deg_z <= deg_z_obj - precision_ang) or flag_depassement:
 
-			self.offboard_mode()
+
 			self.loc_pos_sub.publish(pos_dest)
 			self.rate.sleep()
 
@@ -371,7 +374,7 @@ class AutopilotOffboardNode:
 
 		while abs(self.last_pos.pose.position.z - pos_dest.pose.position.z) >= precision_alt or flag_depassement:
 
-			self.offboard_mode()
+
 			self.loc_pos_sub.publish(pos_dest)
 			self.rate.sleep()
 
@@ -402,7 +405,7 @@ class AutopilotOffboardNode:
 		time_fin = time_start + temps
 
 		while time_fin > time.time():
-			self.offboard_mode()
+
 			self.loc_pos_sub.publish(pos_dest)
 			self.rate.sleep()
 
@@ -413,21 +416,13 @@ class AutopilotOffboardNode:
 	def square(self,distance):
 
 		self.move("forward",distance)
-		self.wait(3)
 		self.rotate("right",90)
-		self.wait(3)
 		self.move("right",distance)
-		self.wait(3)
 		self.rotate("right",90)
-		self.wait(3)
 		self.move("back",distance)
-		self.wait(3)
 		self.rotate("right",90)
-		self.wait(3)
 		self.move("left",distance)
-		self.wait(3)
 		self.rotate("right",90)
-		self.wait(3)
 
 
 ######################AUTRES FONCTIONS#####################
@@ -490,16 +485,17 @@ if __name__ == '__main__':
 	try:
 
 		node = AutopilotOffboardNode()
-		node.offboard_mode()
 		
-		node.move("top",2)
+		node.arm()
 
-		#example de déplacement
-		for i in range(1) :
-			node.square(-2)
-			node.wait(1)
+		node.offboard_mode()
 
-		node.home()
+		node.move("top",0.5)
+		node.move("bottom",0.5)
 
+
+		node.disarm()
+		
+		
 	except rospy.ROSInterruptException:
 		pass

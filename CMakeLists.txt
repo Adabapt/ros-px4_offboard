@@ -173,6 +173,9 @@ install(PROGRAMS
   nodes/autopilot_vel_offb
   nodes/autopilot_pose_offb
   nodes/offb_node_tuto
+  nodes/udp_client
+  nodes/udp_client_offboard
+  nodes/republish_mocap
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

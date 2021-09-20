@@ -19,6 +19,7 @@ node_name = str(rospy.get_param('node_name'))
 topic_name = str(rospy.get_param('topic_name'))
 ip_srv = str(rospy.get_param('ip_srv'))
 port_srv = int(rospy.get_param('port_srv'))
+drone_nb = int(rospy.get_param('drone_nb'))
 
 buffer=1024
 
@@ -121,7 +122,7 @@ class UdpClientOffbNode:
 
 		print("envoie data")
 
-		msg = "UAV.position=\""+self.data+"\""
+		msg = "UAV."+str(drone_nb)+"position=\""+self.data+"\""
 
 		print("msg env :"+msg)
 

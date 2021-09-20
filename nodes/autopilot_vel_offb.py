@@ -115,28 +115,30 @@ class AutopilotOffboardNode:
 
 	################METHODES####################
 
-	"""
-	fonction qui raffraichi l'état de pilotage du drone sur offboard pour pouvoir lui envoyer des instructions depuis l'ordinateur
-	elle sert aussi à armer le drone (peut être à séparer dans une autre fonction)
-	"""
+	"""fonctions pour armer et changer le mode du drone"""
+
+
 	def offboard_mode(self):
+		print("offboard mode")
+		self.set_mode_client(base_mode=0, custom_mode="OFFBOARD")
+		self.rate.sleep()
 
-		while not self.current_state.armed:
-			if self.current_state.mode != "OFFBOARD":
-				self.set_mode_client(base_mode=0, custom_mode="OFFBOARD")
-			else:
-				if not self.current_state.armed:
-					self.arming_client(True)
-					
-			self.rate.sleep()
+	def arm(self):
+		print("arming drone")
+		self.arming_client(True)
+		self.rate.sleep()	
 
-			# older versions of PX4 always return success==True, so better to check Status instead
-			if self.prev_state.armed != self.current_state.armed:
-				rospy.loginfo("Vehicle armed: %r" % self.current_state.armed)
-			if self.prev_state.mode != self.current_state.mode: 
-				rospy.loginfo("Current mode: %s" % self.current_state.mode)
-			self.prev_state = self.current_state
-			self.rate.sleep()
+	def land_mode(self):
+		print("land mode")
+		self.set_mode_client(base_mode=0, custom_mode="AUTO.LAND")
+		self.rate.sleep()
+
+	def disarm(self):
+		print("disarming drone")
+		#fonctionne à tous les coups
+		self.cmd(broadcast=False, command=400, confirmation=0, 
+				param1=0, param2=21196, param3=0,param4=0, param5=0, param6=0, param7=0)
+		self.rate.sleep()
 
 	"""
 	fonction pour déplacer le drone dans une direction sur une distance précise en mètre
@@ -213,7 +215,6 @@ class AutopilotOffboardNode:
 				if pos_dest.pose.position.z < self.init_pos.pose.position.z :
 					pos_dest.pose.position.z = self.init_pos.pose.position.z
 
-		self.offboard_mode()
 		self.cmd_vel_pub.publish(cmd)
 		self.rate.sleep()
 
@@ -273,7 +274,6 @@ class AutopilotOffboardNode:
 				elif pos_dest.pose.position.y < self.last_pos.pose.position.y :
 					cmd.linear.y = -self.speed_corr
 
-			self.offboard_mode()
 			self.cmd_vel_pub.publish(cmd)
 			self.rate.sleep()
 			cmd = Twist()
@@ -362,7 +362,6 @@ class AutopilotOffboardNode:
 				cmd.angular.z = self.speed_ang
 
 			#commande de l'angle
-			self.offboard_mode()
 			self.cmd_vel_pub.publish(cmd)
 			self.rate.sleep()
 			cmd = Twist()
@@ -419,7 +418,6 @@ class AutopilotOffboardNode:
 			elif pos_dest.pose.position.z < self.last_pos.pose.position.z :
 				cmd.linear.z = -self.speed_corr
 
-			self.offboard_mode()
 			self.cmd_vel_pub.publish(cmd)
 			self.rate.sleep()
 			cmd = Twist()
@@ -471,7 +469,6 @@ class AutopilotOffboardNode:
 			elif deg_z < deg_z_obj :
 				cmd.angular.z = self.speed_corr
 
-			self.offboard_mode()
 			self.cmd_vel_pub.publish(cmd)
 			self.rate.sleep()
 			cmd = Twist()
@@ -517,7 +514,6 @@ class AutopilotOffboardNode:
 			else:
 				cmd.linear.z = self.speed_corr
 
-			self.offboard_mode()
 			self.cmd_vel_pub.publish(cmd)
 			self.rate.sleep()
 			cmd = Twist()
@@ -613,6 +609,9 @@ if __name__ == '__main__':
 	try:
 
 		node = AutopilotOffboardNode()
+		
+		node.arm()
+
 		node.offboard_mode()
 		
 		node.move("top",2)
@@ -624,6 +623,7 @@ if __name__ == '__main__':
 
 		node.home()
 
+		node.disarm()
 
 	except rospy.ROSInterruptException:
 		pass
